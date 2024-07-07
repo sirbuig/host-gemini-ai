@@ -1,7 +1,7 @@
 annotated-types==0.6.0
 asttokens==2.4.1
 cachetools==5.3.3
-certifi==2024.2.2
+certifi==2024.7.4
 charset-normalizer==3.3.2
 decorator==5.1.1
 docstring_parser==0.16
