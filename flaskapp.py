@@ -67,7 +67,10 @@ CHOICE_A: choice here
 CHOICE_B: choice here
 CHOICE_C: choice here
 CHOICE_D: choice here
-Answer: A or B or C or D or combined (if it is multiple choice)
+Answer: A or B or C or D (only one answer)
+Make sure to always have 4 choices and only one answer!
+Make sure to also begin your answer with Question 1 immediately after the prompt.
+Make sure to have a normal distribution of answers. (For example if you have 10 questions, don't have all the answers be A)
 """
 
 
@@ -134,6 +137,7 @@ def generate_QA():
             #response = process_pdf(file)  # Replace with your processing function
                 
               response = make_quiz(file)
+              print(response)
               return jsonify(parse_quiz_text(response)), 200
         else:
             return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400
@@ -195,49 +199,66 @@ def make_quiz(pdf_bytes):
         print(f"Unexpected error in make_quiz: {e}")
         return e  # Return the raw exception
         
+
 def parse_quiz_text(text):
-  """
-  Parses quiz text into a JSON object.
-  Returns a dictionary representing the quiz structure.
-  """
-  quiz_data = {"questions": []}
+    """
+    Parses quiz text into a JSON object.
+    Returns a dictionary representing the quiz structure.
+    """
+    quiz_data = {"questions": []}
 
-  # Split text by empty lines to separate questions and answer sections
-  question_answer_blocks = text.strip().split("\n\n")
+    startIndex = text.lower().find("question 1")
 
-  for block in question_answer_blocks:
-    lines = block.splitlines()  # Split block into lines
+    if startIndex != -1:
+        text = text[startIndex:]
+    else:
+        return {"error": "No questions found in text."}
+    
+    # Split text into blocks for each question
+    question_blocks = re.split(r"(?:\*\*)?Question \d+:(?:\*\*)?", text)
 
-    # Extract question text (first line)
-    question_text = lines[0]
+    for block in question_blocks:
+        block = block.strip()
+        if not block:  # Skip empty blocks
+            continue
 
-    current_question_data = {"question": question_text.strip(), "choices": {}, "answer": None}
+        lines = block.splitlines()
+        question_text = None
+        choices = {}
+        answer = None
 
-    # Capture choices (assuming first 4 lines after question are choices)
-    for choice_line in lines[1:5]:  # Process first 4 lines after question
-      choice_match = re.match(r"CHOICE_([A-Z]): (.*?)$", choice_line)
-      if choice_match:
-        choice_letter = choice_match.group(1)
-        choice_text = choice_match.group(2).strip()
-        current_question_data["choices"][choice_letter] = choice_text
+        for line in lines:
+            line = line.strip()
 
-    # Extract answer (assuming answer line starts with "Answer:")
-    answer_line = None
-    for line in lines:
-      if line.lower().startswith("answer:"):  # Check for answer line (case-insensitive)
-        answer_line = line.strip()
-        break  # Stop processing lines after finding answer line
+            # Extract question (first line that is not a choice or answer)
+            if not question_text and not line.startswith("CHOICE_") and not line.startswith("Answer:"):
+                question_text = line
+                continue
 
-    # Process answer line if found
-    if answer_line:
-      answer = answer_line.split(":")[1].strip()  # Extract answer after colon
-      if "," in answer:  # Check for multiple answer format (comma-separated)
-        answer = answer.split(",")
-      current_question_data["answer"] = answer
+            # Extract choices
+            match = re.match(r"CHOICE_([A-Z]):\s*(.*)", line)
+            if match:
+                choice_letter = match.group(1)
+                choice_text = match.group(2).strip()
+                choices[choice_letter] = choice_text
+                continue
 
-    quiz_data["questions"].append(current_question_data)
+            # Extract answer
+            if line.startswith("Answer:"):
+                answer = line.split(":", 1)[1].strip()
 
-  return quiz_data
+        # Add the question to the quiz data
+        if question_text and choices and answer:
+            question_data = {
+                "question": question_text,
+                "choices": {**choices},  # Ensure all choices are captured
+                "answer": answer,
+            }
+            quiz_data["questions"].append(question_data)
+
+    return quiz_data
+
+
    
 # main driver function
 if __name__ == '__main__':
