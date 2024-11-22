@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request
 from PyPDF2 import PdfReader  # Example using PyPDF2 library
 import re
 from google.cloud import storage
+from flasgger import Swagger
+
 
 import os
 """
@@ -70,6 +72,8 @@ Answer: A or B or C or D or combined (if it is multiple choice)
 
 
 app = Flask(__name__)
+swagger = Swagger(app, template_file='swagger_config.yaml')
+
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -77,6 +81,41 @@ def allowed_file(filename):
 
 @app.route('/', methods =['GET','POST'])
 def generate_QA():
+  
+  """
+    Generate Questions and Answers from a PDF.
+    ---
+    tags:
+      - PDF Processing
+    parameters:
+      - name: file
+        in: formData
+        type: file
+        required: true
+        description: The PDF file to process.
+    responses:
+      200:
+        description: Successfully processed the PDF.
+        examples:
+          application/json: 
+            {
+              "questions": [
+                {
+                  "question": "Example Question",
+                  "choices": {
+                    "A": "Choice A",
+                    "B": "Choice B",
+                    "C": "Choice C",
+                    "D": "Choice D"
+                  },
+                  "answer": "A"
+                }
+              ]
+            }
+      400:
+        description: Invalid request or error processing the file.
+  """
+
   if request.method == 'POST':
         # Check if a file was uploaded
         if 'file' not in request.files:
