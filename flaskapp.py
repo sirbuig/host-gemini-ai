@@ -153,17 +153,17 @@ def process_pdf(pdf_bytes):
         return e
     
 
-def upload_to_gcs(bucket_name, pdf_bytes, destination_blob_name, credentials_file):
+def upload_to_gcs(bucket_name, pdf_bytes, destination_blob_name):
     # Initialize the Google Cloud Storage client with the credentials
-    storage_client = storage.Client.from_service_account_json(credentials_file)
+    storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
     blob.upload_from_string(pdf_bytes, content_type="application/pdf")
     
 
-def delete_from_gcs(bucket_name, blob_name, credentials_file):
+def delete_from_gcs(bucket_name, blob_name):
     """Deletes a blob from the specified bucket in GCS."""
-    storage_client = storage.Client.from_service_account_json(credentials_file)
+    storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
     blob.delete()
@@ -176,21 +176,24 @@ def make_quiz(pdf_bytes):
       BUCKET_NAME = "unchiipecos"
       DESTINATION_BLOB_NAME = name
       current_dir = os.path.dirname(os.path.abspath(__file__))
-      CREDENTIALS_FILE = os.path.join(current_dir, "storage_credentials.json")
-      #"/home/mihai/Admin/Desktop/Gemini-AI/api-pdf-gemini/storage_credentials.json"
-      upload_to_gcs(BUCKET_NAME, pdf_bytes, DESTINATION_BLOB_NAME, CREDENTIALS_FILE)
+      
+      upload_to_gcs(BUCKET_NAME, pdf_bytes, DESTINATION_BLOB_NAME)
       pdf_file_uri = "gs://unchiipecos/" + name
 
       pdf_file = Part.from_uri(pdf_file_uri, mime_type="application/pdf")
       contents = [pdf_file, prompt]
 
       response = model.generate_content(contents)
-      delete_from_gcs(BUCKET_NAME, DESTINATION_BLOB_NAME, CREDENTIALS_FILE)
+      delete_from_gcs(BUCKET_NAME, DESTINATION_BLOB_NAME)
 
       return response.text
     
+    except FileNotFoundError as e:
+        print(f"FileNotFoundError in make_quiz: {e}")
+        return str(e)  # Return the error message as a string
     except Exception as e:
-        return e
+        print(f"Unexpected error in make_quiz: {e}")
+        return e  # Return the raw exception
         
 def parse_quiz_text(text):
   """
