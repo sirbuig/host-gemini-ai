@@ -75,25 +75,6 @@ After generating the questions, please provide a list of external links that the
 External Links: [link1, link2, link3, etc.]
 """
 
-prompt_split_chapters = """
-    You are a teacher preparing questions for a quiz. Given the following document, please generate 10 multiple-choice questions (MCQs) with 4 options and a corresponding
-answer letter based on the document. Make the questions such that the answers aren't the same letter for every question. 
-Make questions with longer answers, that does not include names. I want you to also use your best judgement to split the questions into chapters. At least 1 question per chapter. 
-As to the number of the chapters, use your best judgement. For a larger document, you can split the questions into more chapters.
-Example question, use only the structure below to give the response:
-Chapter: Name of chapter here
-Question: question here
-CHOICE_A: choice here
-CHOICE_B: choice here
-CHOICE_C: choice here
-CHOICE_D: choice here
-Answer: A or B or C or D (only one answer)
-Make sure to always have 4 choices and only one answer!
-Make sure to also begin your answer with Chapter immediately after the prompt.
-Make sure to have a normal distribution of answers. (For example if you have 10 questions, don't have all the answers be A)
-After generating the questions, please provide a list of external links that the user can use to learn more about the topic in this format:
-External Links: [link1, link2, link3, etc.]
-"""
 
 app = Flask(__name__)
 swagger = Swagger(app, template_file='swagger_config.yaml')
@@ -173,72 +154,96 @@ def generate_QA_external():
 
 @app.route('/generate-quiz-split-chapters', methods =['POST'])
 def generate_QA_split_chapters():
-    
     """
-      Generate Questions and Answers from a PDF.
-      ---
-      tags:
-        - PDF Processing
-      parameters:
+    Generate Questions and Answers from a PDF, split by chapters with a limited number of questions.
+    ---
+    tags:
+      - PDF Processing
+    parameters:
         - name: file
           in: formData
           type: file
           required: true
           description: The PDF file to process.
-      responses:
-        200:
-          description: Successfully processed the PDF.
-          examples:
-            application/json: 
-              {
-                "chapters":[
-                  {
-                    "chapter": "Name of Chapter",
-                    "questions": [
-                      {
-                        "question": "Example Question",
-                        "choices": {
-                          "A": "Choice A",
-                          "B": "Choice B",
-                          "C": "Choice C",
-                          "D": "Choice D"
-                        },
-                        "answer": "A"
-                      }
-                    ]
-                  }
-                ],
-                "external-links":["examplelink.com", "examplelink2.com", "etc.com"]
-              }
-        400:
-          description: Invalid request or error processing the file.
+        - name: num_questions
+          in: query
+          type: integer
+          required: false
+          description: The number of questions the user wants.
+    responses:
+      200:
+        description: Successfully processed the PDF.
+        examples:
+          application/json: 
+            {
+              "chapters": [
+                {
+                  "chapter": "Name of Chapter",
+                  "questions": [
+                    {
+                      "question": "Example Question",
+                      "choices": {
+                        "A": "Choice A",
+                        "B": "Choice B",
+                        "C": "Choice C",
+                        "D": "Choice D"
+                      },
+                      "answer": "A"
+                    }
+                  ]
+                }
+              ],
+              "external-links": ["examplelink.com", "examplelink2.com", "etc.com"]
+            }
+      400:
+        description: Invalid request or error processing the file.
     """
-  
     if request.method == 'POST':
-          # Check if a file was uploaded
-          if 'file' not in request.files:
-              return jsonify({'error': 'No file uploaded!'}), 400  # Return JSON with error message
-  
-          file = request.files['file']
-          
-          # Validate the uploaded file
-          if file.filename == '':
-              return jsonify({'error': 'No selected file'}), 400  # Return JSON with error message
-          
-          if file and allowed_file(file.filename):
-              # Read the entire file in memory
-              
-              # Process the PDF bytes (e.g., use PyPDF2 or other libraries)
-              #response = process_pdf(file)  # Replace with your processing function
-                  
-                response = make_quiz(file, prompt_split_chapters)
-                print(response)
-                return jsonify(parse_quiz_text_split_chapters(response)), 200
-          else:
-              return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400
-          
+        # Check if a file was uploaded
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded!'}), 400
+
+        file = request.files['file']
+
+        # Validate the uploaded file
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        if file and allowed_file(file.filename):
+            # Retrieve the number of questions from the query parameters
+            num_questions = request.args.get('num_questions', default=10, type=int)
+
+            # Generate a dynamic prompt with the specified number of questions
+            prompt_split_chapters = f"""
+            You are a teacher preparing questions for a quiz. Given the following document, please generate {num_questions} multiple-choice questions (MCQs) with 4 options and a corresponding
+            answer letter based on the document. Make the questions such that the answers aren't the same letter for every question.
+            Make questions with longer answers, that does not include names. I want you to also use your best judgement to split the questions into chapters. At least 2 questions per chapter.
+            As to the number of the chapters, use your best judgement. For a larger document, you can split the questions into more chapters.
+            Example question, use only the structure below to give the response:
+            Chapter: Name of chapter here
+            Question: question here
+            CHOICE_A: choice here
+            CHOICE_B: choice here
+            CHOICE_C: choice here
+            CHOICE_D: choice here
+            Answer: A or B or C or D (only one answer)
+            Make sure to always have 4 choices and only one answer!
+            Make sure to also begin your answer with Chapter immediately after the prompt.
+            Make sure to have a normal distribution of answers. (For example if you have {num_questions} questions, don't have all the answers be A)
+            After generating the questions, please provide a list of external links that the user can use to learn more about the topic in this format:
+            External Links: [link1, link2, link3, etc.]
+            """
+
+            # Process the file and generate questions using the dynamic prompt
+            response = make_quiz(file, prompt_split_chapters)
+
+            # Parse the response into chapters and questions
+            parsed_data = parse_quiz_text_split_chapters(response)
+            return jsonify(parsed_data), 200
+        else:
+            return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400
+
     return jsonify({'error': 'Invalid request method'}), 400
-    # let's try PDF document analysis
     
 # Function to process the uploaded PDF (replace with your actual logic)
 def process_pdf(pdf_bytes):
