@@ -3,7 +3,7 @@ info:
   title: PDF Quiz Generator API
   description: API for generating multiple-choice questions from PDFs.
   version: "1.0.0"
-host: "localhost:8888"
+host: "34.65.214.77"
 schemes:
   - http
 consumes:
