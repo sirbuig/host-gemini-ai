@@ -75,6 +75,26 @@ After generating the questions, please provide a list of external links that the
 External Links: [link1, link2, link3, etc.]
 """
 
+prompt_split_chapters = """
+    You are a teacher preparing questions for a quiz. Given the following document, please generate 10 multiple-choice questions (MCQs) with 4 options and a corresponding
+answer letter based on the document. Make the questions such that the answers aren't the same letter for every question. 
+Make questions with longer answers, that does not include names. I want you to also use your best judgement to split the questions into chapters. At least 1 question per chapter. 
+As to the number of the chapters, use your best judgement. For a larger document, you can split the questions into more chapters.
+Example question, use only the structure below to give the response:
+Chapter: Name of chapter here
+Question: question here
+CHOICE_A: choice here
+CHOICE_B: choice here
+CHOICE_C: choice here
+CHOICE_D: choice here
+Answer: A or B or C or D (only one answer)
+Make sure to always have 4 choices and only one answer!
+Make sure to also begin your answer with Chapter immediately after the prompt.
+Make sure to have a normal distribution of answers. (For example if you have 10 questions, don't have all the answers be A)
+After generating the questions, please provide a list of external links that the user can use to learn more about the topic in this format:
+External Links: [link1, link2, link3, etc.]
+"""
+
 app = Flask(__name__)
 swagger = Swagger(app, template_file='swagger_config.yaml')
 
@@ -150,7 +170,75 @@ def generate_QA_external():
           
     return jsonify({'error': 'Invalid request method'}), 400
     # let's try PDF document analysis
+
+@app.route('/generate-quiz-split-chapters', methods =['POST'])
+def generate_QA_split_chapters():
     
+    """
+      Generate Questions and Answers from a PDF.
+      ---
+      tags:
+        - PDF Processing
+      parameters:
+        - name: file
+          in: formData
+          type: file
+          required: true
+          description: The PDF file to process.
+      responses:
+        200:
+          description: Successfully processed the PDF.
+          examples:
+            application/json: 
+              {
+                "chapters":[
+                  {
+                    "chapter": "Name of Chapter",
+                    "questions": [
+                      {
+                        "question": "Example Question",
+                        "choices": {
+                          "A": "Choice A",
+                          "B": "Choice B",
+                          "C": "Choice C",
+                          "D": "Choice D"
+                        },
+                        "answer": "A"
+                      }
+                    ]
+                  }
+                ],
+                "external-links":["examplelink.com", "examplelink2.com", "etc.com"]
+              }
+        400:
+          description: Invalid request or error processing the file.
+    """
+  
+    if request.method == 'POST':
+          # Check if a file was uploaded
+          if 'file' not in request.files:
+              return jsonify({'error': 'No file uploaded!'}), 400  # Return JSON with error message
+  
+          file = request.files['file']
+          
+          # Validate the uploaded file
+          if file.filename == '':
+              return jsonify({'error': 'No selected file'}), 400  # Return JSON with error message
+          
+          if file and allowed_file(file.filename):
+              # Read the entire file in memory
+              
+              # Process the PDF bytes (e.g., use PyPDF2 or other libraries)
+              #response = process_pdf(file)  # Replace with your processing function
+                  
+                response = make_quiz(file, prompt_split_chapters)
+                print(response)
+                return jsonify(parse_quiz_text_split_chapters(response)), 200
+          else:
+              return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400
+          
+    return jsonify({'error': 'Invalid request method'}), 400
+    # let's try PDF document analysis
     
 # Function to process the uploaded PDF (replace with your actual logic)
 def process_pdf(pdf_bytes):
@@ -274,7 +362,80 @@ def parse_quiz_text_external_links(text):
 
     return quiz_data
     
-   
+def parse_quiz_text_split_chapters(text):
+    """
+    Parses quiz text into a JSON object with chapters containing questions.
+    Returns a dictionary representing the quiz structure.
+    """
+    quiz_data = {"chapters": [], "external-links": []}
+
+    # Split the text into sections by chapters
+    chapter_blocks = re.split(r"\nChapter:\s*", text.strip())
+
+    for block in chapter_blocks:
+        lines = block.splitlines()
+
+        if len(lines) == 0:
+            continue
+
+        # Extract chapter name (first line if not the first block)
+        chapter_name = lines[0].strip()
+        
+        # Initialize chapter data
+        chapter_data = {"chapter": chapter_name, "questions": []}
+
+        # Parse the questions in the block
+        question_blocks = re.split(r"\n\n", "\n".join(lines[1:]))
+        for question_block in question_blocks:
+            question_lines = question_block.strip().splitlines()
+            if not question_lines:
+                continue
+
+            # Extract question text
+            question_match = re.match(r"Question: (.+)", question_lines[0])
+            if not question_match:
+                continue
+            question_text = question_match.group(1).strip()
+
+            # Extract choices
+            choices = {}
+            for choice_line in question_lines[1:5]:  # Process 4 choice lines
+                choice_match = re.match(r"CHOICE_([A-D]): (.+)", choice_line.strip())
+                if choice_match:
+                    choice_letter = choice_match.group(1)
+                    choice_text = choice_match.group(2).strip()
+                    choices[choice_letter] = choice_text
+
+            # Extract answer
+            answer_match = None
+            for line in question_lines:
+                if line.startswith("Answer:"):
+                    answer_match = line.split(":")[1].strip()
+                    break
+
+            if not answer_match:
+                answer_match = None
+
+            # Add question to the chapter
+            chapter_data["questions"].append({
+                "question": question_text,
+                "choices": choices,
+                "answer": answer_match,
+            })
+
+        # Add the chapter to the quiz data
+        quiz_data["chapters"].append(chapter_data)
+
+    # Extract external links at the end of the response
+    external_links_match = re.search(r"External Links: \[(.+)\]", text)
+    if external_links_match:
+        links = external_links_match.group(1).split(",")
+        quiz_data["external-links"] = [link.strip() for link in links]
+
+    return quiz_data
+
+
+
 # main driver function
 if __name__ == '__main__':
 	app.run(host='0.0.0.0',port='8888')
