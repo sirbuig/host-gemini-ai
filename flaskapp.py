@@ -1,15 +1,17 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template_string, redirect, session, render_template, send_from_directory
 from PyPDF2 import PdfReader  # Example using PyPDF2 library
 import re
 from google.cloud import storage
+import flasgger
 from flasgger import Swagger
-
-
+from flask_jwt_extended import (
+    JWTManager, jwt_required, create_access_token, get_jwt_identity, verify_jwt_in_request
+)
+from flask_httpauth import HTTPBasicAuth
+from dotenv import load_dotenv
 import os
-"""
-LIBRARIES
-"""
-
+from datetime import timedelta
+import uuid
 # import base64
 # import vertexai
 
@@ -77,20 +79,179 @@ External Links: [link1, link2, link3, etc.]
 
 
 app = Flask(__name__)
+
+flasgger_static_path = os.path.join(os.path.dirname(flasgger.__file__), 'ui3/static')
 swagger = Swagger(app, template_file='swagger_config.yaml')
 
+load_dotenv()
+
+app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY", "default-jwt-key")
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1000)
+app.secret_key = os.getenv("APP_SECRET_KEY", "default-fallback-key")
+
+auth = HTTPBasicAuth()
+
+CREDENTIALS = {
+    "admin": os.getenv("ADMIN_PASSWORD", "default-admin-password"),  # Username: admin, Password: your secret key
+    "dotnet_user": os.getenv("DOTNET_USER_PASSWORD", "default-dotnet-password")
+}
+
+jwt = JWTManager(app)
+
+@auth.verify_password
+def verify_password(username, password):
+    if username in CREDENTIALS and CREDENTIALS[username] == password:
+        return username  # Authentication successful
+    return None
+
+@app.route('/flasgger_static/<path:filename>')
+def flasgger_static(filename):
+    return send_from_directory(flasgger_static_path, filename)
 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in {'pdf'}  # Allowed file extension
 
-@app.route('/', methods =['GET'])
-def index():
-  return "Hello, this is the API for FMInatorul"
 
-@app.route('/generate-quiz-external-links', methods =['POST'])
+@app.route('/admin/login')
+@auth.login_required
+def admin_login():
+    # Log in the admin
+    session['admin_logged_in'] = True
+    # Generate a JWT token and store it in the session
+    expires = timedelta(days=1000)
+    access_token = create_access_token(identity=auth.current_user(), expires_delta=expires)
+    session['jwt_token'] = access_token
+    # Redirect to Swagger UI
+    return redirect('/apidocs')
+
+@app.before_request
+def authenticate():
+    if request.path.startswith('/api/'):
+        if 'Authorization' in request.headers:
+            try:
+                verify_jwt_in_request()
+                return
+            except Exception as e:
+                return f"JWT Error: {str(e)}", 401  # Return error as a string
+        elif session.get('admin_logged_in'):
+            return
+        else:
+            return "Unauthorized", 401  # Return plain string for unauthorized access
+
+@app.route('/login', methods=['POST'])
+def api_login():
+    """
+    Log in and generate a JWT token for API access.
+    ---
+    tags:
+      - Login
+    summary: "Generate JWT Token"
+    description: "This endpoint allows users to log in and retrieve a JWT token."
+    parameters:
+      - in: query
+        name: username
+        required: true
+        type: string
+        description: "The username for authentication"
+      - in: query
+        name: password
+        required: true
+        type: string
+        description: "The password for authentication"
+    responses:
+      200:
+        description: "JWT token successfully generated"
+        schema:
+          type: object
+          properties:
+            token:
+              type: string
+              description: "The generated JWT token"
+      401:
+        description: "Invalid credentials"
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Invalid credentials"
+    """
+    username = request.args.get("username")
+    password = request.args.get("password")
+    expires = timedelta(minutes=5)
+    if username in CREDENTIALS and CREDENTIALS[username] == password:
+        access_token = create_access_token(identity={"username": username}, expires_delta=expires)
+        return jsonify({"token": access_token})
+    return jsonify({"message": "Invalid credentials"}), 401
+     
+@app.route('/', methods=['GET'])
+def index():
+    html_content = '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FMInatorul API</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: linear-gradient(135deg, #74ebd5, #9face6);
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                color: #333;
+            }
+            .container {
+                text-align: center;
+                background: white;
+                border-radius: 10px;
+                padding: 20px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            }
+            h1 {
+                color: #2c3e50;
+                margin-bottom: 20px;
+            }
+            p {
+                margin-bottom: 30px;
+                font-size: 1.1em;
+            }
+            .button {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 1em;
+                color: white;
+                background: #3498db;
+                border: none;
+                border-radius: 5px;
+                text-decoration: none;
+                cursor: pointer;
+                transition: background 0.3s ease;
+            }
+            .button:hover {
+                background: #2980b9;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Welcome to FMInatorul API</h1>
+            <p>You can log in as an ADMIN to access and manage the API.</p>
+            <a href="/admin/login" class="button">Admin Login</a>
+        </div>
+    </body>
+    </html>
+    '''
+    return render_template_string(html_content)
+
+@app.route('/api/generate-quiz-external-links', methods =['POST'])
 def generate_QA_external():
-    
+
     """
       Generate Questions and Answers from a PDF.
       ---
@@ -124,35 +285,46 @@ def generate_QA_external():
               }
         400:
           description: Invalid request or error processing the file.
+          examples:
+            application/json: 
+              {
+                "error": "No file uploaded!"
+              }
+        401:
+          description: Unauthorized access. Authentication failed.
+          examples:
+            application/json:
+              {
+                "error": "Authentification error : ..."
+              }
     """
-  
-    if request.method == 'POST':
-          # Check if a file was uploaded
-          if 'file' not in request.files:
-              return jsonify({'error': 'No file uploaded!'}), 400  # Return JSON with error message
-  
-          file = request.files['file']
-          
-          # Validate the uploaded file
-          if file.filename == '':
-              return jsonify({'error': 'No selected file'}), 400  # Return JSON with error message
-          
-          if file and allowed_file(file.filename):
-              # Read the entire file in memory
-              
-              # Process the PDF bytes (e.g., use PyPDF2 or other libraries)
-              #response = process_pdf(file)  # Replace with your processing function
-                  
-                response = make_quiz(file, prompt_external_links)
-                print(response)
-                return jsonify(parse_quiz_text_external_links(response)), 200
-          else:
-              return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400
-          
-    return jsonify({'error': 'Invalid request method'}), 400
+    
+    # Check if a file was uploaded
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded!'}), 400  # Return JSON with error message
+
+    file = request.files['file']
+    
+    # Validate the uploaded file
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400  # Return JSON with error message
+    
+    if file and allowed_file(file.filename):
+        # Read the entire file in memory
+        
+        # Process the PDF bytes (e.g., use PyPDF2 or other libraries)
+        #response = process_pdf(file)  # Replace with your processing function
+            
+        response = make_quiz(file, prompt_external_links)
+        return jsonify(parse_quiz_text_external_links(response)), 200
+    else:
+        return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400     
+
+
     # let's try PDF document analysis
 
-@app.route('/generate-quiz-split-chapters', methods =['POST'])
+@app.route('/api/generate-quiz-split-chapters', methods =['POST'])
+@jwt_required()
 def generate_QA_split_chapters():
     """
     Generate Questions and Answers from a PDF, split by chapters with a limited number of questions.
@@ -197,8 +369,15 @@ def generate_QA_split_chapters():
             }
       400:
         description: Invalid request or error processing the file.
+      401:
+        description: Unauthorized access. Authentication failed.
+        examples:
+        application/json:
+            {
+            "error": "Authentification error : ..."
+            }
     """
-    if request.method == 'POST':
+    try:
         # Check if a file was uploaded
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded!'}), 400
@@ -242,9 +421,9 @@ def generate_QA_split_chapters():
             return jsonify(parsed_data), 200
         else:
             return jsonify({'error': 'Invalid file type (only PDFs allowed)'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Authentification error:: {str(e)}'}), 401
 
-    return jsonify({'error': 'Invalid request method'}), 400
-    
 # Function to process the uploaded PDF (replace with your actual logic)
 def process_pdf(pdf_bytes):
     try:
@@ -271,7 +450,7 @@ def delete_from_gcs(bucket_name, blob_name):
   
 def make_quiz(pdf_bytes, prompt):
     try:
-      name = pdf_bytes.filename
+      name = f"{uuid.uuid4()}.pdf"
       pdf_bytes = pdf_bytes.read()
       # reader = PdfReader(pdf_bytes)
       BUCKET_NAME = "unchiipecos"
@@ -296,7 +475,6 @@ def make_quiz(pdf_bytes, prompt):
         print(f"Unexpected error in make_quiz: {e}")
         return e  # Return the raw exception
         
-
 def parse_quiz_text_external_links(text):
     """
     Parses quiz text into a JSON object with questions and external links.
@@ -439,7 +617,25 @@ def parse_quiz_text_split_chapters(text):
 
     return quiz_data
 
+@app.route('/apispec_1.json')
+def swagger_spec():
+    return send_from_directory(app.root_path, 'swagger_config.yaml')
 
+@app.route('/apidocs')
+def swagger_ui():
+    if not session.get('admin_logged_in'):
+        return redirect('/admin/login')
+    return render_template('swagger-ui.html',
+                           title='PDF Quiz Generator API',
+                           specs_url='/apispec_1.json',
+                           jwt_token=session.get('jwt_token'),
+                           css=[
+                               '/flasgger_static/swagger-ui.css',
+                           ],
+                           js=[
+                               '/flasgger_static/swagger-ui-bundle.js',
+                               '/flasgger_static/swagger-ui-standalone-preset.js'
+                           ])
 
 # main driver function
 if __name__ == '__main__':

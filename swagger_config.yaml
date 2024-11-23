@@ -10,3 +10,23 @@ consumes:
   - application/json
 produces:
   - application/json
+securityDefinitions:
+  BearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: |
+      For accessing the secured APIs, use the "Bearer" authentication scheme.
+      In the field below, enter your JWT token prefixed with the word "Bearer" and a space.
+
+      Example: "Bearer <JWT Token>"
+security:
+  - BearerAuth: []
+
+# securityDefinitions: Defines the authentication methods available for the API.
+# BearerAuth: We define a new security scheme called BearerAuth.
+# type: apiKey indicates that a key is used for authentication.
+# name: Authorization means the key will be sent in the Authorization header.
+# in: header specifies that the key is sent in the header.
+# description: Provides instructions for the user.
+# security: Applies the security requirements globally to all endpoints.

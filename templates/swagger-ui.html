@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ title }}</title>
+  {% for css_file in css %}
+  <link rel="stylesheet" type="text/css" href="{{ css_file }}">
+  {% endfor %}
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  {% for js_file in js %}
+  <script src="{{ js_file }}"></script>
+  {% endfor %}
+  <script>
+    window.onload = function() {
+      // Build a system
+      const ui = SwaggerUIBundle({
+        url: "{{ specs_url }}",
+        dom_id: '#swagger-ui',
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        layout: "StandaloneLayout",
+        // {% if oauth2_redirect_url %}
+        // oauth2RedirectUrl: "{{ oauth2_redirect_url }}",
+        // {% endif %}
+        // {% if config %}
+        // {% for key, value in config.items() %}
+        // {{ key }}: {{ value }},
+        // {% endfor %}
+        // {% endif %}
+      });
+
+      {% if jwt_token %}
+      // Automatically authorize with the JWT token
+      ui.authActions.authorize({
+        BearerAuth: {
+          name: "BearerAuth",
+          schema: {
+            type: "apiKey",
+            in: "header",
+            name: "Authorization",
+          },
+          value: "Bearer {{ jwt_token }}"
+        }
+      });
+      {% endif %}
+
+      window.ui = ui;
+    }
+  </script>
+</body>
+</html>
