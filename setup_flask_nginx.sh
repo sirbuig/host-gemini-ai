@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # Variables (change these to match your setup, or pass as arguments)
-YOUR_DOMAIN_OR_IP=${1:-"your_domain_or_ip"}
+DOMAIN=${1:-"api.fminatorul.xyz"}
 YOUR_USER=${2:-"your_user"}
 APP_DIR=${3:-$(pwd)}
 
+echo "Setting up Flask app on $FULL_DOMAIN with NGINX and Gunicorn"
 echo "Setting up Flask app with NGINX and Gunicorn"
 echo "Domain/IP: $YOUR_DOMAIN_OR_IP"
 echo "User: $YOUR_USER"
@@ -63,7 +64,7 @@ echo "Configuring NGINX..."
 sudo tee /etc/nginx/sites-available/flask_nginx > /dev/null <<EOL
 server {
     listen 80;
-    server_name $YOUR_DOMAIN_OR_IP;
+    server_name $DOMAIN;
 
     location / {
         include proxy_params;
@@ -86,7 +87,7 @@ sudo ufw delete allow 5000
 read -p "Would you like to set up SSL with Let's Encrypt? (y/n): " ssl_choice
 if [ "$ssl_choice" == "y" ]; then
     sudo apt install -y python3-certbot-nginx
-    sudo certbot --nginx -d $YOUR_DOMAIN_OR_IP
+    sudo certbot --nginx -d $DOMAIN
 fi
 
 echo "Setup complete! Your Flask app should be running with NGINX and Gunicorn."
