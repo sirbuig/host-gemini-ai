@@ -1,0 +1,49 @@
+    Generate Questions and Answers from a PDF, split by chapters with a limited number of questions.
+    ---
+    tags:
+      - PDF Processing
+    parameters:
+        - name: file
+          in: formData
+          type: file
+          required: true
+          description: The PDF file to process.
+        - name: num_questions
+          in: query
+          type: integer
+          required: false
+          description: The number of questions the user wants.
+    responses:
+      200:
+        description: Successfully processed the PDF.
+        examples:
+          application/json: 
+            {
+              "chapters": [
+                {
+                  "chapter": "Name of Chapter",
+                  "questions": [
+                    {
+                      "question": "Example Question",
+                      "choices": {
+                        "A": "Choice A",
+                        "B": "Choice B",
+                        "C": "Choice C",
+                        "D": "Choice D"
+                      },
+                      "answer": "A"
+                    }
+                  ]
+                }
+              ],
+              "external-links": ["examplelink.com", "examplelink2.com", "etc.com"]
+            }
+      400:
+        description: Invalid request or error processing the file.
+      401:
+        description: Unauthorized access. Authentication failed.
+        examples:
+        application/json:
+            {
+            "error": "Authentification error : ..."
+            }

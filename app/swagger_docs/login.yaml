@@ -1,0 +1,34 @@
+    Log in and generate a JWT token for API access.
+    ---
+    tags:
+      - Login
+    summary: "Generate JWT Token"
+    description: "This endpoint allows users to log in and retrieve a JWT token."
+    parameters:
+      - in: query
+        name: username
+        required: true
+        type: string
+        description: "The username for authentication"
+      - in: query
+        name: password
+        required: true
+        type: string
+        description: "The password for authentication"
+    responses:
+      200:
+        description: "JWT token successfully generated"
+        schema:
+          type: object
+          properties:
+            token:
+              type: string
+              description: "The generated JWT token"
+      401:
+        description: "Invalid credentials"
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Invalid credentials"
