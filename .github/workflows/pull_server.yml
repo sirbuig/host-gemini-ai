@@ -24,7 +24,13 @@ jobs:
           pip freeze > requirements.txt  # Update requirements.txt with the latest dependencies
           pip install -r requirements.txt
           deactivate
-        
+      - name: Set up Environment
+        env:
+          APP_SECRET_KEY: ${{ secrets.APP_SECRET_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          DOTNET_USER_PASSWORD: ${{ secrets.DOTNET_USER_PASSWORD }}
+          
       - name: Restart server
         run: |
           sudo systemctl restart flask_gunicorn  # Optional: restart the Gunicorn service
