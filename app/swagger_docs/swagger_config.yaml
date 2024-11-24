@@ -2,7 +2,7 @@ swagger: "2.0"
 info:
   title: PDF Quiz Generator API
   description: API for generating multiple-choice questions from PDFs.
-  version: "1.2.1"
+  version: "1.2.2"
 host: "api.fminatorul.xyz"
 schemes:
   - https

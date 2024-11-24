@@ -1,5 +1,5 @@
 from flask import session, request
-from flask_jwt_extended import verify_jwt_in_request
+from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from flask_httpauth import HTTPBasicAuth
 from dotenv import load_dotenv
 import os

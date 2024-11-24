@@ -59,7 +59,7 @@ def api_login():
     # Authenticate user
     if username in CREDENTIALS and CREDENTIALS[username] == password:
         expires = timedelta(days=1)
-        access_token = create_access_token(identity={"username": username}, expires_delta=expires)
+        access_token = create_access_token(identity=username, expires_delta=expires)
         return jsonify({"token": access_token})
     return jsonify({"message": "Invalid credentials"}), 401
      
