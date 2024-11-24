@@ -22,13 +22,12 @@ def verify_password(username, password):
 
 def authenticate_request():
     if request.path.startswith('/api/'):
-        if 'Authorization' in request.headers:
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
             try:
                 verify_jwt_in_request()
                 return
             except Exception as e:
                 return f"JWT Error: {str(e)}", 401  # Return error as a string
-        elif session.get('admin_logged_in'):
-            return
         else:
             return "Unauthorized", 401  # Return plain string for unauthorized access
