@@ -49,10 +49,16 @@ def admin_login():
 @bp.route('/login', methods=['POST'])
 @swag_from(current_path + '/swagger_docs/login.yaml', methods=['POST'])
 def api_login():
-    username = request.args.get("username")
-    password = request.args.get("password")
-    expires = timedelta(minutes=5)
+    data = request.json  # Read JSON body
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({"message": "Username and password are required"}), 400
+
+    username = data['username']
+    password = data['password']
+
+    # Authenticate user
     if username in CREDENTIALS and CREDENTIALS[username] == password:
+        expires = timedelta(minutes=5)
         access_token = create_access_token(identity={"username": username}, expires_delta=expires)
         return jsonify({"token": access_token})
     return jsonify({"message": "Invalid credentials"}), 401

@@ -4,17 +4,26 @@
       - Login
     summary: "Generate JWT Token"
     description: "This endpoint allows users to log in and retrieve a JWT token."
+    consumes:
+      - application/json
+    produces:
+      - application/json
     parameters:
-      - in: query
-        name: username
+      - in: body
+        name: body
         required: true
-        type: string
-        description: "The username for authentication"
-      - in: query
-        name: password
-        required: true
-        type: string
-        description: "The password for authentication"
+        description: "User credentials for login."
+        schema:
+          type: object
+          properties:
+            username:
+              type: string
+              description: "The username for authentication"
+              example: "dotnet_user"
+            password:
+              type: string
+              description: "The password for authentication"
+              example: "secret"
     responses:
       200:
         description: "JWT token successfully generated"
